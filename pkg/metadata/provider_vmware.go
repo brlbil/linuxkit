@@ -37,13 +37,12 @@ func (p *ProviderVMware) String() string {
 func (p *ProviderVMware) Probe() bool {
 	c, err := exec.LookPath("vmware-rpctool")
 	if err != nil {
-		log.Debugf("Look for vmware-rcptool failed %v", err)
 		return false
 	}
 
 	p.cmd = c
 
-	b, err := p.vmwareGet(guestMetaData)
+	b, err := p.vmwareGet(guestUserData)
 	return (err == nil) && len(b) > 0 && string(b) != " " && string(b) != "---"
 }
 
@@ -91,15 +90,13 @@ func (p *ProviderVMware) vmwareGet(name string) ([]byte, error) {
 		return nil, err
 	}
 
-	//out = bytes.TrimSuffix(out, []byte("\n"))
-
 	switch strings.TrimSuffix(string(enc), "\n") {
 	case " ":
 		return bytes.TrimSuffix(out, []byte("\n")), nil
 	case "base64":
-		dst := make([]byte, base64.StdEncoding.DecodedLen(len(out)))
+		r := base64.NewDecoder(base64.StdEncoding, bytes.NewBuffer(out))
 
-		_, err = base64.StdEncoding.Decode(dst, out)
+		dst, err := ioutil.ReadAll(r)
 		if err != nil {
 			log.Debugf("Decoding base64 of '%s' failed %v", name, err)
 			return nil, err
