@@ -101,10 +101,10 @@ func main() {
 			netProviders = append(netProviders, NewVultr())
 		case p == "digitalocean":
 			netProviders = append(netProviders, NewDigitalOcean())
-		case p == "cdrom":
-			cdromProviders = ListCDROMs()
 		case p == "vmware":
 			cdromProviders = append(cdromProviders, NewVMware())
+		case p == "cdrom":
+			cdromProviders = append(cdromProviders, ListCDROMs()...)
 		case strings.HasPrefix(p, "file="):
 			fileProviders = append(fileProviders, fileProvider(p[5:]))
 		default:
