@@ -10,19 +10,18 @@ import (
 	"path"
 	"strings"
 
+	"github.com/vmware/vmw-guestinfo/rpcvmx"
+	"github.com/vmware/vmw-guestinfo/vmcheck"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
 	guestMetaData = "guestinfo.metadata"
-
 	guestUserData = "guestinfo.userdata"
 )
 
 // ProviderVMware is the type implementing the Provider interface for VMware
-type ProviderVMware struct {
-	cmd string
-}
+type ProviderVMware struct {}
 
 // NewVMware returns a new ProviderVMware
 func NewVMware() *ProviderVMware {
@@ -35,18 +34,22 @@ func (p *ProviderVMware) String() string {
 
 // Probe checks if we are running on VMware
 func (p *ProviderVMware) Probe() bool {
-	c, err := exec.LookPath("vmware-rpctool")
+	isVM, err := vmcheck.IsVirtualWorld()
 	if err != nil {
+		log.Fatalf("Error: %s", err)
 		return false
 	}
 
-	p.cmd = c
+	if !isVM {
+		log.Fatalf("ERROR: not in a virtual world.")
+		return false
+	}
 
 	b, err := p.vmwareGet(guestUserData)
 	return (err == nil) && len(b) > 0 && string(b) != " " && string(b) != "---"
 }
 
-// Extract gets both the AWS specific and generic userdata
+// Extract gets both the hostname and generic userdata
 func (p *ProviderVMware) Extract() ([]byte, error) {
 	// Get host name. This must not fail
 	metaData, err := p.vmwareGet(guestMetaData)
@@ -72,23 +75,26 @@ func (p *ProviderVMware) Extract() ([]byte, error) {
 
 // vmwareGet gets and extracts the guest data
 func (p *ProviderVMware) vmwareGet(name string) ([]byte, error) {
-	cmdArg := func(n string) string {
-		return fmt.Sprintf("info-get %s", n)
-	}
-	// get the gusest info value
-	out, err := exec.Command(p.cmd, cmdArg(name)).Output()
+	config := rpcvmx.NewConfig()
+
+	// get the guest info value
+	sout, err := config.String(name, "")
 	if err != nil {
 		eErr := err.(*exec.ExitError)
-		log.Debugf("Getting guest info %s failed: error %s", cmdArg(name), string(eErr.Stderr))
+		log.Debugf("Getting guest info %s failed: error %s", name, string(eErr.Stderr))
 		return nil, err
 	}
 
-	enc, err := exec.Command(p.cmd, cmdArg(name+".encoding")).Output()
+	// get the guest info encryption
+	senc, err := config.String(name+".encoding", "")
 	if err != nil {
 		eErr := err.(*exec.ExitError)
 		log.Debugf("Getting guest info %s.encoding failed: error %s", name, string(eErr.Stderr))
 		return nil, err
 	}
+
+	out := []byte(sout)
+	enc := []byte(senc)
 
 	switch strings.TrimSuffix(string(enc), "\n") {
 	case " ":
